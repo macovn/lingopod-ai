@@ -24,7 +24,8 @@ import {
   Clock,
   X,
   Mic,
-  Volume2
+  Volume2,
+  Check
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

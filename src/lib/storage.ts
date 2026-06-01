@@ -201,7 +201,13 @@ const DEFAULT_PODCASTS: PodcastItem[] = [
     title: "The Power of Habit & Mindset Change",
     sourceUrl: "https://www.youtube.com/watch?v=w7yG2F_L-sE",
     sourceType: "youtube",
-    transcript: "Welcome to LingoPod. Today we are talking about habits. Habits are the invisible architecture of daily life. If you can change your habits, you can change your life. We often think that massive success requires massive action. In reality, it is the tiny, 1% improvements day after day that compound into life-changing results. Let's look at how we can cultivate good habits by understanding the habit loop: cue, craving, response, and reward.",
+    transcript: `[00:00] Welcome to LingoPod.
+[00:02] Today we are talking about habits.
+[00:05] Habits are the invisible architecture of daily life.
+[00:09] If you can change your habits, you can change your life.
+[00:13] We often think that massive success requires massive action.
+[00:18] In reality, it is the tiny, 1% improvements day after day that compound into life-changing results.
+[00:25] Let's look at how we can cultivate good habits by understanding the habit loop: cue, craving, response, and reward.`,
     createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString()
   },
   {
@@ -210,7 +216,11 @@ const DEFAULT_PODCASTS: PodcastItem[] = [
     title: "Exploring the Mysteries of Deep Ocean Life",
     sourceUrl: "https://open.spotify.com/episode/ocean-mysteries",
     sourceType: "spotify",
-    transcript: "The deep sea remains one of the final frontiers of human exploration. Below 200 meters, sunlight fades completely, entering the twilight zone. Here, we encounter resilient creatures that have adapted to extreme pressure and near-freezing temperatures. Many ocean organisms use bioluminescence, generating their own beautiful light through serendipity of evolution. Understanding these species helps us appreciate the amazing adaptability of life.",
+    transcript: `[00:00] The deep sea remains one of the final frontiers of human exploration.
+[00:05] Below 200 meters, sunlight fades completely, entering the twilight zone.
+[00:11] Here, we encounter resilient creatures that have adapted to extreme pressure and near-freezing temperatures.
+[00:18] Many ocean organisms use bioluminescence, generating their own beautiful light through serendipity of evolution.
+[00:26] Understanding these species helps us appreciate the amazing adaptability of life.`,
     createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString()
   }
 ];

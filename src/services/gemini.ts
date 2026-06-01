@@ -22,7 +22,7 @@ async function callProxyOnClient(action: string, args: Record<string, any>) {
 }
 
 function getApiKey(): string | null {
-  return process.env.NEXT_PUBLIC_GEMINI_API_KEY || process.env.GEMINI_API_KEY || null;
+  return process.env.GEMINI_API_KEY || null;
 }
 
 export function createGeminiClient() {
