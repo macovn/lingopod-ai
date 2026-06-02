@@ -426,23 +426,44 @@ export const LocalDB = {
     return list ? JSON.parse(list) : DEFAULT_PODCASTS;
   },
 
-  savePodcast: (item: Omit<PodcastItem, "id" | "userId" | "createdAt">): PodcastItem => {
+  savePodcast: (item: Omit<PodcastItem, "id" | "userId" | "createdAt"> & { id?: string; createdAt?: string }): PodcastItem => {
     const list = LocalDB.getPodcasts();
-    const newId = "pod-" + Math.random().toString(36).substring(2, 9);
     const activeUser = LocalDB.getUser();
-    const newItem: PodcastItem = {
-      ...item,
-      id: newId,
-      userId: activeUser.id,
-      createdAt: new Date().toISOString()
-    };
-    const updated = [newItem, ...list];
-    localStorage.setItem(getStorageKey(KEYS.PODCASTS), JSON.stringify(updated));
+    const now = new Date().toISOString();
     
-    // Sync to Supabase
-    syncToCloud("podcasts", newItem);
-    
-    return newItem;
+    if (item.id) {
+      // Edit mode
+      const updatedList = list.map(p => {
+        if (p.id === item.id) {
+          const updatedItem = {
+            ...p,
+            ...item,
+          } as PodcastItem;
+          // Sync to Supabase
+          syncToCloud("podcasts", updatedItem);
+          return updatedItem;
+        }
+        return p;
+      });
+      localStorage.setItem(getStorageKey(KEYS.PODCASTS), JSON.stringify(updatedList));
+      return updatedList.find(p => p.id === item.id)!;
+    } else {
+      // Create mode
+      const newId = "pod-" + Math.random().toString(36).substring(2, 9);
+      const newItem: PodcastItem = {
+        ...item,
+        id: newId,
+        userId: activeUser.id,
+        createdAt: now
+      };
+      const updated = [newItem, ...list];
+      localStorage.setItem(getStorageKey(KEYS.PODCASTS), JSON.stringify(updated));
+      
+      // Sync to Supabase
+      syncToCloud("podcasts", newItem);
+      
+      return newItem;
+    }
   },
 
   deletePodcast: (id: string): void => {

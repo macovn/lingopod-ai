@@ -222,6 +222,7 @@ export default function PodcastsPage() {
   // Transcript Edit State
   const [isEditingTranscript, setIsEditingTranscript] = useState(false);
   const [editableTranscript, setEditableTranscript] = useState("");
+  const [editableTitle, setEditableTitle] = useState("");
 
   // Smart Dictionary State
   const [dictWord, setDictWord] = useState("");
@@ -248,6 +249,7 @@ export default function PodcastsPage() {
     if (list.length > 0 && !selectedPodcast) {
       setSelectedPodcast(list[0]);
       setEditableTranscript(list[0].transcript);
+      setEditableTitle(list[0].title);
     }
   };
 
@@ -472,12 +474,14 @@ export default function PodcastsPage() {
     loadPodcasts();
     setSelectedPodcast(newItem);
     setEditableTranscript(newItem.transcript);
+    setEditableTitle(newItem.title);
   };
 
   // Switch podcast selection
   const handleSelectPodcast = (pod: PodcastItem) => {
     setSelectedPodcast(pod);
     setEditableTranscript(pod.transcript);
+    setEditableTitle(pod.title);
     setIsEditingTranscript(false);
     setDictWord("");
     setDictData(null);
@@ -485,20 +489,23 @@ export default function PodcastsPage() {
     setIsPlaying(false);
   };
 
-  // Save edited transcript
+  // Save edited transcript and title
   const handleSaveTranscript = () => {
     if (!selectedPodcast) return;
+    if (!editableTitle.trim()) {
+      alert("Tiêu đề bài học không được để trống.");
+      return;
+    }
     
-    const list = LocalDB.getPodcasts();
-    const updatedList = list.map(p => {
-      if (p.id === selectedPodcast.id) {
-        return { ...p, transcript: editableTranscript };
-      }
-      return p;
+    const updated = LocalDB.savePodcast({
+      id: selectedPodcast.id,
+      title: editableTitle.trim(),
+      sourceUrl: selectedPodcast.sourceUrl,
+      sourceType: selectedPodcast.sourceType,
+      transcript: editableTranscript
     });
-    localStorage.setItem("lingopod_podcasts", JSON.stringify(updatedList));
     
-    setSelectedPodcast({ ...selectedPodcast, transcript: editableTranscript });
+    setSelectedPodcast(updated);
     setIsEditingTranscript(false);
     loadPodcasts();
   };
@@ -798,15 +805,30 @@ export default function PodcastsPage() {
                   {/* Transcript Header bar */}
                   <div className="flex items-center justify-between gap-4 border-b border-border/80 pb-4">
                     <div className="min-w-0 flex-1">
-                      <h2 className="text-base font-black text-foreground truncate">{selectedPodcast.title}</h2>
-                      <a 
-                        href={selectedPodcast.sourceUrl} 
-                        target="_blank" 
-                        rel="noreferrer"
-                        className="text-xs text-accent hover:underline mt-1 inline-block truncate max-w-full"
-                      >
-                        {selectedPodcast.sourceUrl}
-                      </a>
+                      {isEditingTranscript ? (
+                        <div className="flex flex-col gap-1 pr-2">
+                          <label className="text-[9px] text-muted-foreground font-semibold uppercase tracking-wider select-none">Tiêu đề bài học</label>
+                          <Input
+                            type="text"
+                            value={editableTitle}
+                            onChange={(e) => setEditableTitle(e.target.value)}
+                            className="h-8 text-xs bg-[#070b13] border-border text-foreground font-bold"
+                            placeholder="Nhập tiêu đề..."
+                          />
+                        </div>
+                      ) : (
+                        <>
+                          <h2 className="text-base font-black text-foreground truncate" title={selectedPodcast.title}>{selectedPodcast.title}</h2>
+                          <a 
+                            href={selectedPodcast.sourceUrl} 
+                            target="_blank" 
+                            rel="noreferrer"
+                            className="text-xs text-accent hover:underline mt-1 inline-block truncate max-w-full"
+                          >
+                            {selectedPodcast.sourceUrl}
+                          </a>
+                        </>
+                      )}
                     </div>
                     
                     <div className="flex gap-2 shrink-0">
@@ -836,6 +858,7 @@ export default function PodcastsPage() {
                           onClick={() => {
                             setIsEditingTranscript(true);
                             setEditableTranscript(selectedPodcast.transcript);
+                            setEditableTitle(selectedPodcast.title);
                           }} 
                           variant="secondary"
                           size="sm" 
