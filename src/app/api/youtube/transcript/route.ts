@@ -53,6 +53,11 @@ function isAllowedYoutubeUrl(rawUrl: string): boolean {
   }
 }
 
+interface RawBlock {
+  startTime: number;
+  text: string;
+}
+
 function cleanDuplicates(text: string): string {
   let cleaned = text
     .replace(/&amp;/g, "&")
@@ -60,8 +65,7 @@ function cleanDuplicates(text: string): string {
     .replace(/&gt;/g, ">")
     .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'")
-    .replace(/&gt;&gt;/g, "")
-    .replace(/>>/g, "")
+    .replace(/&gt;&gt;/g, ">>")
     .trim();
   
   const words = cleaned.split(/\s+/);
@@ -110,9 +114,142 @@ function cleanDuplicates(text: string): string {
   return finalTokens.join(" ");
 }
 
+function normalizeWord(word: string): string {
+  return word.toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+function findOverlapWordsCount(wordsA: string[], wordsB: string[]): number {
+  const normA = wordsA.map(normalizeWord).filter(Boolean);
+  const normB = wordsB.map(normalizeWord).filter(Boolean);
+  
+  const maxSearch = Math.min(25, normA.length, normB.length);
+  for (let k = maxSearch; k >= 1; k--) {
+    let match = true;
+    for (let i = 0; i < k; i++) {
+      if (normA[normA.length - k + i] !== normB[i]) {
+        match = false;
+        break;
+      }
+    }
+    if (match) {
+      return k;
+    }
+  }
+  return 0;
+}
+
+function removeOverlapFromSuffix(rawTextA: string, wordsB: string[], overlapCount: number): string {
+  if (overlapCount <= 0) return rawTextA;
+  
+  const targetNormWords = wordsB.map(normalizeWord).filter(Boolean).slice(0, overlapCount);
+  const tokensA = rawTextA.split(/(\s+)/);
+  
+  const normTokensInfo: { tokenIdx: number; norm: string }[] = [];
+  for (let i = 0; i < tokensA.length; i++) {
+    const trimmed = tokensA[i].trim();
+    if (trimmed && !trimmed.startsWith(">>") && !trimmed.startsWith("[") && !trimmed.endsWith("]")) {
+      const norm = normalizeWord(trimmed);
+      if (norm) {
+        normTokensInfo.push({ tokenIdx: i, norm });
+      }
+    }
+  }
+  
+  if (normTokensInfo.length >= overlapCount) {
+    let isMatch = true;
+    const startOffset = normTokensInfo.length - overlapCount;
+    for (let i = 0; i < overlapCount; i++) {
+      if (normTokensInfo[startOffset + i].norm !== targetNormWords[i]) {
+        isMatch = false;
+        break;
+      }
+    }
+    if (isMatch) {
+      const firstOverlapTokenIdx = normTokensInfo[startOffset].tokenIdx;
+      let resultTokens = tokensA.slice(0, firstOverlapTokenIdx);
+      while (resultTokens.length > 0 && (!resultTokens[resultTokens.length - 1].trim() || resultTokens[resultTokens.length - 1].trim() === ">>")) {
+        resultTokens.pop();
+      }
+      return resultTokens.join("");
+    }
+  }
+  
+  return rawTextA;
+}
+
+function splitBlockIntoSentences(text: string): string[] {
+  let prepared = text
+    .replace(/(?:&gt;&gt;|\>\>)\s*/g, "\n>> ")
+    .replace(/([.?!])\s+/g, "$1\n");
+  
+  return prepared
+    .split("\n")
+    .map(line => line.trim())
+    .filter(Boolean);
+}
+
+function formatTime(seconds: number): string {
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  return `[${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}]`;
+}
+
+function processRawBlocks(rawBlocks: RawBlock[]): string {
+  if (rawBlocks.length === 0) return "";
+
+  // Step 1: Clean intra-block duplicates
+  const cleanedBlocks = rawBlocks.map(block => ({
+    startTime: block.startTime,
+    text: cleanDuplicates(block.text)
+  }));
+
+  // Step 2: Clean cross-block duplicates
+  for (let i = 0; i < cleanedBlocks.length - 1; i++) {
+    const blockA = cleanedBlocks[i];
+    const blockB = cleanedBlocks[i + 1];
+    
+    const wordsA = blockA.text.split(/\s+/);
+    const wordsB = blockB.text.split(/\s+/);
+    
+    const overlap = findOverlapWordsCount(wordsA, wordsB);
+    if (overlap > 0) {
+      blockA.text = removeOverlapFromSuffix(blockA.text, wordsB, overlap);
+    }
+  }
+
+  // Step 3 & 4: Split into sentences and align time proportionally
+  const finalLines: string[] = [];
+
+  for (let i = 0; i < cleanedBlocks.length; i++) {
+    const block = cleanedBlocks[i];
+    const nextBlock = cleanedBlocks[i + 1];
+    
+    const blockStart = block.startTime;
+    const blockEnd = nextBlock ? nextBlock.startTime : blockStart + Math.max(10, block.text.split(/\s+/).length * 0.4);
+    const duration = blockEnd - blockStart;
+    
+    const sentences = splitBlockIntoSentences(block.text);
+    if (sentences.length === 0) continue;
+    
+    const totalChars = sentences.reduce((sum, s) => sum + s.length, 0);
+    
+    let currentStart = blockStart;
+    for (let j = 0; j < sentences.length; j++) {
+      const sentence = sentences[j];
+      const sentenceTime = formatTime(currentStart);
+      finalLines.push(`${sentenceTime} ${sentence}`);
+      
+      const sentenceDur = totalChars > 0 ? duration * (sentence.length / totalChars) : 0;
+      currentStart += sentenceDur;
+    }
+  }
+
+  return finalLines.join("\n");
+}
+
 function parseThirdPartyTranscript(rawText: string): string {
   const lines = rawText.split("\n");
-  const result: string[] = [];
+  const rawBlocks: RawBlock[] = [];
   
   let startIndex = lines.findIndex(l => l.trim() === "## Transcript");
   if (startIndex === -1) {
@@ -131,19 +268,17 @@ function parseThirdPartyTranscript(rawText: string): string {
       const hours = match[1] ? parseInt(match[1], 10) : 0;
       const mins = parseInt(match[2], 10) + (hours * 60);
       const secs = parseInt(match[3], 10);
+      const startTime = mins * 60 + secs;
       const text = match[4].trim();
       
-      const cleanMins = mins.toString().padStart(2, "0");
-      const cleanSecs = secs.toString().padStart(2, "0");
-      const cleanText = cleanDuplicates(text);
-      
-      if (cleanText) {
-        result.push(`[${cleanMins}:${cleanSecs}] ${cleanText}`);
-      }
+      rawBlocks.push({
+        startTime,
+        text
+      });
     }
   }
   
-  return result.join("\n");
+  return processRawBlocks(rawBlocks);
 }
 
 export async function GET(request: NextRequest) {
@@ -211,16 +346,34 @@ export async function GET(request: NextRequest) {
   try {
     const segments = await YoutubeTranscript.fetchTranscript(videoId);
     if (segments && segments.length > 0) {
-      const transcriptLines = segments.map(seg => {
-        const startSecs = seg.offset / 1000;
-        const mins = Math.floor(startSecs / 60);
-        const secs = Math.floor(startSecs % 60);
-        const timestamp = `[${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}]`;
-        const cleanText = cleanDuplicates(seg.text);
-        return `${timestamp} ${cleanText}`;
-      });
+      const rawBlocks: RawBlock[] = [];
+      let currentBlockText: string[] = [];
+      let currentBlockStart = segments[0].offset / 1000;
       
-      const finalTranscript = transcriptLines.join("\n");
+      for (let i = 0; i < segments.length; i++) {
+        const seg = segments[i];
+        const segStart = seg.offset / 1000;
+        const hasSpeakerChange = seg.text.includes(">>") || seg.text.includes("&gt;&gt;") || seg.text.includes(">");
+        
+        if (i > 0 && (segStart - currentBlockStart > 20 || hasSpeakerChange)) {
+          rawBlocks.push({
+            startTime: currentBlockStart,
+            text: currentBlockText.join(" ")
+          });
+          currentBlockStart = segStart;
+          currentBlockText = [];
+        }
+        currentBlockText.push(seg.text);
+      }
+      
+      if (currentBlockText.length > 0) {
+        rawBlocks.push({
+          startTime: currentBlockStart,
+          text: currentBlockText.join(" ")
+        });
+      }
+
+      const finalTranscript = processRawBlocks(rawBlocks);
       return NextResponse.json({
         title,
         transcript: finalTranscript,
