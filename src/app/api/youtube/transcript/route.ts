@@ -236,7 +236,9 @@ function processRawBlocks(rawBlocks: RawBlock[]): string {
     let currentStart = blockStart;
     for (let j = 0; j < sentences.length; j++) {
       const sentence = sentences[j];
-      const sentenceTime = formatTime(currentStart);
+      // Shift timestamps earlier by 1.2 seconds to compensate for YouTube ASR (Automatic Speech Recognition) delay
+      const alignedStart = Math.max(0, currentStart - 1.2);
+      const sentenceTime = formatTime(alignedStart);
       finalLines.push(`${sentenceTime} ${sentence}`);
       
       const sentenceDur = totalChars > 0 ? duration * (sentence.length / totalChars) : 0;
