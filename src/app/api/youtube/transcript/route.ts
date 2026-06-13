@@ -284,23 +284,33 @@ function parseThirdPartyTranscript(rawText: string): string {
 }
 
 export async function GET(request: NextRequest) {
-  const supabase = await createSupabaseServerClient();
-  if (!supabase) {
-    return NextResponse.json({ error: "Supabase server is not configured." }, { status: 500 });
-  }
-
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
-
   let userId = "demo-user-id";
-  if (authError || !user) {
-    if (process.env.NODE_ENV !== "development") {
-      return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
+  const supabase = await createSupabaseServerClient();
+
+  if (!supabase) {
+    // Nếu chưa cấu hình Supabase, kiểm tra cookie demo
+    const demoUserCookie = request.cookies.get("lingopod_demo_user")?.value;
+    if (!demoUserCookie) {
+      return NextResponse.json({ error: "Unauthorized (Demo Mode)." }, { status: 401 });
+    }
+    try {
+      userId = JSON.parse(decodeURIComponent(demoUserCookie)).id || "demo-user-id";
+    } catch {
+      userId = "demo-user-id";
     }
   } else {
-    userId = user.id;
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      if (process.env.NODE_ENV !== "development") {
+        return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
+      }
+    } else {
+      userId = user.id;
+    }
   }
 
   const rate = transcriptRateLimiter.consume(userId);

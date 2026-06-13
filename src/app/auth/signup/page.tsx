@@ -7,8 +7,9 @@ import { Sparkles, Mail, Lock, User, UserPlus, ChevronLeft } from "lucide-react"
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { createSupabaseBrowserClient } from "@/lib/supabase";
+import { createSupabaseBrowserClient, isSupabaseConfigured } from "@/lib/supabase";
 import { sanitizeNextPath } from "@/lib/security";
+import { LocalDB } from "@/lib/storage";
 
 export default function SignupPage() {
   const router = useRouter();
@@ -27,8 +28,33 @@ export default function SignupPage() {
 
     const supabase = createSupabaseBrowserClient();
     if (!supabase) {
-      setError("Supabase is not configured.");
-      setLoading(false);
+      // Cho phép đăng ký chế độ Local Demo
+      const nextPath = sanitizeNextPath(
+        new URLSearchParams(window.location.search).get("next"),
+        "/dashboard"
+      );
+      
+      const demoEmail = email.trim();
+      const demoName = name.trim() || demoEmail.split("@")[0].toUpperCase();
+      const cleanEmail = demoEmail.toLowerCase().replace(/[^a-z0-9]/g, "");
+      const demoUserId = `demo-${cleanEmail}`;
+      
+      // Lưu profile người dùng vào Local Storage
+      LocalDB.updateUser({
+        id: demoUserId,
+        email: demoEmail,
+        name: demoName,
+        role: "user",
+        streak: 1,
+        lastActiveDate: new Date().toISOString().split("T")[0]
+      });
+      
+      // Lưu cookie phiên làm việc demo cho Middleware
+      const demoUser = { id: demoUserId, email: demoEmail, name: demoName };
+      document.cookie = `lingopod_demo_user=${encodeURIComponent(JSON.stringify(demoUser))}; path=/; max-age=${7 * 24 * 60 * 60}`;
+      
+      setSuccess(true);
+      router.push(nextPath);
       return;
     }
 
@@ -78,6 +104,13 @@ export default function SignupPage() {
             <p className="text-sm text-muted-foreground mt-1">Create a secure account</p>
           </div>
         </div>
+
+        {!isSupabaseConfigured() && (
+          <div className="mb-4 p-3 rounded bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs leading-relaxed">
+            <span className="font-bold block mb-1">⚠️ Chế độ Local Demo:</span>
+            Supabase chưa được cấu hình. Bạn có thể nhập thông tin để đăng ký chạy thử nghiệm trực tiếp trên local.
+          </div>
+        )}
 
         {error && (
           <div className="mb-4 p-3 rounded bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-semibold">

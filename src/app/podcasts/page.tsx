@@ -307,6 +307,28 @@ export default function PodcastsPage() {
     return null;
   };
 
+  // Helper to check for duplicate links
+  const isDuplicateLink = (url: string): boolean => {
+    if (!url) return false;
+    const targetUrl = url.trim().toLowerCase();
+    
+    // Check standard match first
+    const exists = podcasts.some(pod => pod.sourceUrl.trim().toLowerCase() === targetUrl);
+    if (exists) return true;
+    
+    // If it's a YouTube video, check by video ID
+    const targetVideoId = getYTVideoId(url);
+    if (targetVideoId) {
+      const existsVideoId = podcasts.some(pod => {
+        const id = getYTVideoId(pod.sourceUrl);
+        return id === targetVideoId;
+      });
+      if (existsVideoId) return true;
+    }
+    
+    return false;
+  };
+
   // YouTube API integration is now fully managed by the memoized YoutubePlayer component to prevent rendering cycles
 
   // Format seconds to mm:ss helper
@@ -427,6 +449,11 @@ export default function PodcastsPage() {
   const handleCreatePodcast = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTitle.trim()) return;
+
+    if (newUrl.trim() && isDuplicateLink(newUrl)) {
+      alert("Podcast này đã được thêm vào, vui lòng thêm vào Podcast khác");
+      return;
+    }
 
     let transcriptToSave = newTranscript.trim();
 
@@ -606,6 +633,12 @@ export default function PodcastsPage() {
   // YouTube Auto-Transcript handler V2
   const handleImportYoutubeTranscript = async () => {
     if (!ytUrl.trim()) return;
+
+    if (isDuplicateLink(ytUrl)) {
+      alert("Podcast này đã được thêm vào, vui lòng thêm vào Podcast khác");
+      return;
+    }
+
     setYtLoading(true);
     try {
       const res = await fetch(`/api/youtube/transcript?url=${encodeURIComponent(ytUrl)}`);

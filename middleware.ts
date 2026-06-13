@@ -25,10 +25,16 @@ export async function middleware(request: NextRequest) {
   const apiRequest = isApiRequest(pathname);
 
   if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+    // Nếu chưa cấu hình Supabase, kiểm tra cookie demo của người dùng
+    const demoUser = request.cookies.get("lingopod_demo_user")?.value;
+    if (demoUser) {
+      return NextResponse.next();
+    }
+    
     if (apiRequest) {
       return NextResponse.json(
-        { error: "Server auth is not configured." },
-        { status: 500 }
+        { error: "Server auth is not configured (Demo Mode)." },
+        { status: 401 }
       );
     }
     return buildLoginRedirect(request);

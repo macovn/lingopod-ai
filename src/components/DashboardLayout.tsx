@@ -75,7 +75,12 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
             
             await pullCloudData();
           } else if (event === "SIGNED_OUT") {
-            router.push("/");
+            if (typeof window !== "undefined") {
+              localStorage.removeItem("lingopod_user");
+              document.cookie = "lingopod_demo_user=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+            }
+            setUser(null);
+            window.location.href = "/";
           }
         });
         
@@ -99,9 +104,21 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   const handleLogout = async () => {
     const supabase = createSupabaseBrowserClient();
     if (supabase) {
-      await supabase.auth.signOut();
+      try {
+        const { error } = await supabase.auth.signOut();
+        if (error) {
+          console.error("Lỗi đăng xuất khỏi Supabase:", error.message);
+        }
+      } catch (err) {
+        console.error("Lỗi khi đăng xuất:", err);
+      }
     }
-    router.push("/");
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("lingopod_user");
+      document.cookie = "lingopod_demo_user=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+    }
+    setUser(null);
+    window.location.href = "/";
   };
 
   const navItems = [

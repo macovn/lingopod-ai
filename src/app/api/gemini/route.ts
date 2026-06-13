@@ -66,21 +66,33 @@ function parsePayload(raw: unknown): GeminiRequestPayload {
 
 export async function POST(request: NextRequest) {
   try {
+    let userId = "demo-user-id";
     const supabase = await createSupabaseServerClient();
+
     if (!supabase) {
-      return NextResponse.json({ error: "Supabase server is not configured." }, { status: 500 });
+      // Nếu chưa cấu hình Supabase, kiểm tra cookie demo
+      const demoUserCookie = request.cookies.get("lingopod_demo_user")?.value;
+      if (!demoUserCookie) {
+        return NextResponse.json({ error: "Unauthorized (Demo Mode)." }, { status: 401 });
+      }
+      try {
+        userId = JSON.parse(decodeURIComponent(demoUserCookie)).id || "demo-user-id";
+      } catch {
+        userId = "demo-user-id";
+      }
+    } else {
+      const {
+        data: { user },
+        error: authError,
+      } = await supabase.auth.getUser();
+
+      if (authError || !user) {
+        return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
+      }
+      userId = user.id;
     }
 
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
-
-    if (authError || !user) {
-      return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
-    }
-
-    const rate = geminiRateLimiter.consume(user.id);
+    const rate = geminiRateLimiter.consume(userId);
     if (!rate.allowed) {
       return NextResponse.json(
         { error: "Rate limit exceeded. Please retry later." },
