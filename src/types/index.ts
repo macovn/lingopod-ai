@@ -8,6 +8,13 @@ export interface UserProfile {
   streak: number;
   lastActiveDate?: string;
   createdAt: string;
+  
+  // Các trường cá nhân hóa cho học tập & AI
+  englishLevel?: "beginner" | "intermediate" | "advanced";
+  learningGoal?: "conversation" | "business" | "travel" | "exams" | "other";
+  interests?: string[];
+  hobbies?: string;
+  selfIntroduction?: string;
 }
 
 export interface VocabularyItem {

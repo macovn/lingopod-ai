@@ -129,6 +129,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     { name: "AI Quiz", href: "/quiz", icon: GraduationCap },
     { name: "Shadowing Studio", href: "/shadowing", icon: Mic2 },
     { name: "AI Speaking Coach", href: "/ai-coach", icon: Sparkles },
+    { name: "AI Profile", href: "/profile", icon: User },
     { name: "SaaS Admin Panel", href: "/admin", icon: ShieldAlert }
   ];
 

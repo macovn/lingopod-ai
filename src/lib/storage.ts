@@ -128,7 +128,12 @@ const DEFAULT_USER: UserProfile = {
   role: "user",
   streak: 5,
   lastActiveDate: new Date().toISOString().split("T")[0],
-  createdAt: new Date().toISOString()
+  createdAt: new Date().toISOString(),
+  englishLevel: "intermediate",
+  learningGoal: "business",
+  interests: ["technology", "business"],
+  hobbies: "Đọc tài liệu công nghệ, nghe nhạc tiếng Anh",
+  selfIntroduction: "Tôi tên là Tuấn, đang làm lập trình viên, muốn cải thiện kỹ năng nghe và nói tiếng Anh giao tiếp chuyên ngành công nghệ."
 };
 
 const DEFAULT_VOCABULARY: VocabularyItem[] = [
@@ -310,6 +315,24 @@ export const LocalDB = {
     const current = LocalDB.getUser();
     const updated = { ...current, ...profile };
     localStorage.setItem(KEYS.USER, JSON.stringify(updated));
+    
+    // Đồng bộ lên Supabase nếu không phải tài khoản demo mặc định
+    if (updated.id !== "demo-user-id" && updated.id) {
+      syncToCloud("profiles", {
+        id: updated.id,
+        name: updated.name,
+        email: updated.email,
+        role: updated.role,
+        streak: updated.streak,
+        last_active_date: updated.lastActiveDate,
+        english_level: updated.englishLevel,
+        learning_goal: updated.learningGoal,
+        interests: updated.interests,
+        hobbies: updated.hobbies,
+        self_introduction: updated.selfIntroduction
+      });
+    }
+    
     return updated;
   },
 

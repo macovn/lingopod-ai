@@ -1,5 +1,5 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { VocabularyItem, QuizQuestion } from "@/types";
+import { VocabularyItem, QuizQuestion, UserProfile } from "@/types";
 
 export const isGeminiConfigured = (): boolean => {
   if (typeof window !== "undefined") {
@@ -9,10 +9,20 @@ export const isGeminiConfigured = (): boolean => {
 };
 
 async function callProxyOnClient(action: string, args: Record<string, any>) {
+  let userProfile = null;
+  if (typeof window !== "undefined") {
+    try {
+      const { LocalDB } = await import("@/lib/storage");
+      userProfile = LocalDB.getUser();
+    } catch (e) {
+      console.error("Lỗi lấy thông tin profile cho client proxy:", e);
+    }
+  }
+
   const response = await fetch("/api/gemini", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ action, args })
+    body: JSON.stringify({ action, args: { ...args, userProfile } })
   });
   const data = await response.json();
   if (!response.ok) {
@@ -41,7 +51,10 @@ export function createGeminiClient() {
 export const GEMINI_MODEL = "gemini-2.5-flash";
 
 // 1. AI Vocabulary Definition Generator
-export async function generateVocabularyDefinition(term: string): Promise<{
+export async function generateVocabularyDefinition(
+  term: string,
+  userProfile?: UserProfile
+): Promise<{
   term: string;
   ipa: string;
   partOfSpeech: string;
@@ -60,16 +73,19 @@ export async function generateVocabularyDefinition(term: string): Promise<{
   const client = createGeminiClient();
   
   if (!client) {
+    const name = userProfile?.name || "bạn";
+    const level = userProfile?.englishLevel || "intermediate";
+    const goal = userProfile?.learningGoal || "business";
     return {
       term: cleanTerm,
       ipa: "/ˌdeməʊˈfaɪl/",
       partOfSpeech: "noun",
       meaningVi: `[Demo Mode] Định nghĩa mẫu cho từ "${cleanTerm}" (Chưa cấu hình GEMINI_API_KEY)`,
-      example: `This is a sample learning sentence using the word "${cleanTerm}".`,
-      exampleVi: `Đây là câu ví dụ mẫu sử dụng từ "${cleanTerm}" trong chế độ thử nghiệm.`,
+      example: `This is a sample learning sentence using the word "${cleanTerm}" customized for ${name} at ${level} level.`,
+      exampleVi: `Đây là câu ví dụ mẫu sử dụng từ "${cleanTerm}" được cá nhân hóa cho học viên ${name} ở trình độ ${level}.`,
       synonyms: ["mock", "sample", "test-word"],
       collocations: [`learn ${cleanTerm}`, `master ${cleanTerm}`],
-      practicalUsage: "Bạn đang chạy ứng dụng ở chế độ Local Demo không có GEMINI_API_KEY. Khi điền khoá API Key hợp lệ vào file .env.local, Gemini AI sẽ tự động tra cứu, phiên âm IPA, dịch nghĩa tiếng Việt và phân tích ngữ cảnh thực tế cho bất kỳ từ vựng nào bạn yêu cầu."
+      practicalUsage: `Chào ${name}, bạn đang chạy ứng dụng ở chế độ Local Demo không có GEMINI_API_KEY. AI Profile của bạn đã được nhận diện với trình độ ${level} và mục tiêu ${goal}. Khi có API Key, Gemini AI sẽ tạo định nghĩa và ví dụ chính xác theo đúng hồ sơ này.`
     };
   }
 
@@ -78,6 +94,35 @@ export async function generateVocabularyDefinition(term: string): Promise<{
       model: GEMINI_MODEL,
       generationConfig: { responseMimeType: "application/json" }
     });
+
+    let personalizationInstructions = "";
+    if (userProfile) {
+      const levelNames = {
+        beginner: "Sơ cấp (Beginner - simple vocabulary, slow/clear explanations, very basic example sentences)",
+        intermediate: "Trung cấp (Intermediate - standard vocabulary, natural yet accessible explanations and examples)",
+        advanced: "Cao cấp (Advanced - complex/native vocabulary, advanced phrasing, idiomatic expressions)"
+      };
+      const goalNames = {
+        conversation: "Giao tiếp hàng ngày (Everyday Conversation)",
+        business: "Công việc/Thương mại (Business/Work)",
+        travel: "Du lịch (Travel)",
+        exams: "Thi cử (Exams like IELTS/TOEFL/TOEIC)",
+        other: "Mục tiêu khác"
+      };
+
+      personalizationInstructions = `
+      CÁ NHÂN HÓA CHO NGƯỜI DÙNG:
+      - Tên người dùng: ${userProfile.name || ""}
+      - Trình độ tiếng Anh: ${userProfile.englishLevel ? levelNames[userProfile.englishLevel] : "Trung cấp"}
+      - Mục tiêu học tập: ${userProfile.learningGoal ? goalNames[userProfile.learningGoal] : "Tiếng Anh giao tiếp chung"}
+      - Sở thích & Quan tâm: ${userProfile.interests?.join(", ") || ""} ${userProfile.hobbies || ""}
+      - Tự giới thiệu: ${userProfile.selfIntroduction || ""}
+
+      Yêu cầu cá nhân hóa:
+      1. Phần giải thích tiếng Việt "meaningVi" và "practicalUsage" phải viết dễ hiểu, phù hợp với trình độ người học.
+      2. QUAN TRỌNG: Câu ví dụ "example" (tiếng Anh) và dịch nghĩa "exampleVi" (tiếng Việt) PHẢI được đặt trong ngữ cảnh liên quan tới sở thích, học tập hoặc công việc của người dùng (ví dụ: nếu họ thích công nghệ/kinh doanh, hãy đặt câu ví dụ trong ngữ cảnh công nghệ/kinh doanh; nếu thích du lịch, hãy đặt trong ngữ cảnh du lịch).
+      `;
+    }
 
     const prompt = `
       You are an expert English lexicographer and Vietnamese translator.
@@ -94,6 +139,8 @@ export async function generateVocabularyDefinition(term: string): Promise<{
         "collocations": ["array of 2-3 common collocations or phrase templates using this word"],
         "practicalUsage": "a short paragraph in Vietnamese explaining exactly how to use this word in real life, common contexts, nuances, or common mistakes to avoid"
       }
+
+      ${personalizationInstructions}
     `;
 
     const result = await model.generateContent(prompt);
@@ -106,7 +153,10 @@ export async function generateVocabularyDefinition(term: string): Promise<{
 }
 
 // 2. AI Quiz Generator
-export async function generateQuiz(vocabList: VocabularyItem[]): Promise<QuizQuestion[]> {
+export async function generateQuiz(
+  vocabList: VocabularyItem[],
+  userProfile?: UserProfile
+): Promise<QuizQuestion[]> {
   if (typeof window !== "undefined") {
     return callProxyOnClient("generateQuiz", { vocabList });
   }
@@ -118,6 +168,9 @@ export async function generateQuiz(vocabList: VocabularyItem[]): Promise<QuizQue
   }
 
   if (!client) {
+    const level = userProfile?.englishLevel || "intermediate";
+    const name = userProfile?.name || "bạn";
+    
     const mockQuestions: QuizQuestion[] = vocabList.slice(0, 3).map((v, index) => {
       const type = index === 0 ? "multiple-choice" : index === 1 ? "fill-in-blank" : "matching";
       return {
@@ -138,7 +191,7 @@ export async function generateQuiz(vocabList: VocabularyItem[]): Promise<QuizQue
           : type === "fill-in-blank" 
             ? v.term 
             : v.meaningVi,
-        explanation: `[Demo Mode] Đây là lời giải mẫu cho từ "${v.term}". Trong chế độ chạy thật, Gemini AI sẽ phân tích từ vựng bạn đã lưu để tự động sinh các câu hỏi đa dạng kèm giải thích ngữ pháp chi tiết.`
+        explanation: `[Demo Mode] Chào ${name}, đây là câu hỏi ôn tập được mô phỏng phù hợp với trình độ ${level} cho từ "${v.term}". Trong chế độ chạy thật, Gemini AI sẽ tạo trắc nghiệm đầy đủ ngữ cảnh cho bạn.`
       };
     });
     
@@ -169,6 +222,33 @@ export async function generateQuiz(vocabList: VocabularyItem[]): Promise<QuizQue
       synonyms: v.synonyms
     }));
 
+    let personalizationInstructions = "";
+    if (userProfile) {
+      const levelNames = {
+        beginner: "Beginner (Sơ cấp - câu ngắn gọn, cấu trúc ngữ pháp rất đơn giản, từ ngữ dễ hiểu)",
+        intermediate: "Intermediate (Trung cấp - câu có cấu trúc thông thường, tự nhiên)",
+        advanced: "Advanced (Cao cấp - câu phức tạp, nhiều từ nối, thành ngữ, thử thách hơn)"
+      };
+      const goalNames = {
+        conversation: "Everyday Conversation",
+        business: "Business & Professional environment",
+        travel: "Travel scenarios",
+        exams: "Exam style (IELTS/TOEIC academic contexts)",
+        other: "General English"
+      };
+
+      personalizationInstructions = `
+      CÁ NHÂN HÓA CHO NGƯỜI DÙNG:
+      - Trình độ tiếng Anh mục tiêu của câu hỏi: ${userProfile.englishLevel ? levelNames[userProfile.englishLevel] : "Trung cấp"}
+      - Ngữ cảnh trọng tâm: ${userProfile.learningGoal ? goalNames[userProfile.learningGoal] : "Tổng quát"}
+      - Sở thích & Mối quan tâm: ${userProfile.interests?.join(", ") || ""} ${userProfile.hobbies || ""}
+
+      Yêu cầu cá nhân hóa:
+      1. Điều chỉnh độ khó của câu hỏi, đặc biệt là các câu điền vào chỗ trống hoặc câu hỏi tình huống, sao cho phù hợp với trình độ tiếng Anh của người học.
+      2. Đặt bối cảnh hoặc nội dung của các câu hỏi (nhất là ví dụ điền từ) xoay quanh sở thích hoặc mục tiêu của họ (ví dụ: bối cảnh công sở nếu học Business, bối cảnh sân bay/khách sạn nếu học Travel).
+      `;
+    }
+
     const prompt = `
       You are an elite ESL Quiz Builder.
       Based on the following vocabulary list, generate 5 interesting quiz questions in Vietnamese.
@@ -193,6 +273,8 @@ export async function generateQuiz(vocabList: VocabularyItem[]): Promise<QuizQue
         }
       ]
       Mix types: "multiple-choice", "fill-in-blank", "matching". Make explanations helpful.
+
+      ${personalizationInstructions}
     `;
 
     const result = await model.generateContent(prompt);
@@ -208,7 +290,8 @@ export async function generateQuiz(vocabList: VocabularyItem[]): Promise<QuizQue
 export async function chatSpeakingCoach(
   persona: "teacher" | "partner" | "interviewer",
   history: { role: "user" | "model"; content: string }[],
-  message: string
+  message: string,
+  userProfile?: UserProfile
 ): Promise<{
   reply: string;
   score: number;
@@ -234,13 +317,17 @@ export async function chatSpeakingCoach(
       partner: "Alex (Language Partner)",
       interviewer: "Mr. Thompson (Interviewer)"
     };
+
+    const name = userProfile?.name || "there";
+    const hobbyText = userProfile?.hobbies ? ` I remember you like "${userProfile.hobbies}".` : "";
+    const goalText = userProfile?.learningGoal ? ` Since your goal is "${userProfile.learningGoal}", let's practice corresponding scenarios.` : "";
     
     return {
-      reply: `Hello! I received your message: "${message}". Since you are in Demo Mode (without GEMINI_API_KEY), I am simulated to keep the conversation flowing. How are you doing today?`,
+      reply: `Hi ${name}! I received your message: "${message}". Since you are in Demo Mode (without GEMINI_API_KEY), I am simulating our conversation. ${hobbyText}${goalText} Let's keep practicing!`,
       score: 85,
-      grammar: `[Demo Mode] Bạn đã viết: "${message}". Câu của bạn ngữ pháp khá tốt. Khi cấu hình GEMINI_API_KEY, tôi sẽ phân tích chi tiết lỗi chia động từ, giới từ, mạo từ của bạn tại đây.`,
-      vocabulary: "[Demo Mode] Từ vựng của bạn rõ ràng, dễ hiểu. Bạn có thể sử dụng thêm các từ nối để câu nói tự nhiên hơn.",
-      fluency: `[Demo Mode] Nhận xét độ trôi chảy giả lập cho vai trò ${personaNames[persona]}.`
+      grammar: `[Demo Mode] Chào ${userProfile?.name || "bạn"}, câu của bạn: "${message}" có ngữ pháp tốt. Khi bật Gemini AI, tôi sẽ sửa lỗi giới từ, mạo từ và chia thì của bạn.`,
+      vocabulary: `[Demo Mode] Từ vựng phù hợp với người học trình độ ${userProfile?.englishLevel || "intermediate"}. Có thể mở rộng thêm các từ đồng nghĩa nâng cao hơn.`,
+      fluency: `[Demo Mode] Phản hồi giả lập cho vai trò ${personaNames[persona]} đánh giá độ trôi chảy.`
     };
   }
 
@@ -251,6 +338,29 @@ export async function chatSpeakingCoach(
     });
 
     const formattedHistory = history.map(h => `${h.role === "user" ? "Student" : "Coach"}: ${h.content}`).join("\n");
+
+    let personalizationInstructions = "";
+    if (userProfile) {
+      const levelNames = {
+        beginner: "Beginner level (use simple sentence structures, common words, speak clearly and avoid overly complex idioms)",
+        intermediate: "Intermediate level (use normal natural language, standard vocabulary)",
+        advanced: "Advanced level (use rich vocabulary, native idioms, natural pace and complex structures)"
+      };
+
+      personalizationInstructions = `
+      USER PROFILE INFORMATION:
+      - Student Name: ${userProfile.name || "Student"}
+      - English Proficiency Level: ${userProfile.englishLevel ? levelNames[userProfile.englishLevel] : "Intermediate level"}
+      - Primary Learning Goal: ${userProfile.learningGoal || "General English Improvement"}
+      - Hobbies & Interests: ${userProfile.interests?.join(", ") || ""} ${userProfile.hobbies || ""}
+      - About the Student: ${userProfile.selfIntroduction || ""}
+
+      Roleplay Adaptations:
+      1. Address the student by their name ("${userProfile.name || "Student"}") naturally.
+      2. Match the language complexity and sentence length of your response ("reply") to their proficiency level.
+      3. Proactively steer the conversation towards topics matching their hobbies, interests, or self-introduction details when appropriate. For Mr. Thompson (Interviewer), tailor questions to their background described in self-introduction.
+      `;
+    }
 
     const systemPrompt = `
       ${prompts[persona]}
@@ -269,6 +379,8 @@ export async function chatSpeakingCoach(
 
       Context conversation history:
       ${formattedHistory}
+
+      ${personalizationInstructions}
     `;
 
     const result = await model.generateContent(systemPrompt);

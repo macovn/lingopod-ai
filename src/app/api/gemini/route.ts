@@ -112,7 +112,8 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "Invalid arguments." }, { status: 400 });
       }
       const term = validateString(payload.args.term, "term", 1, 80);
-      const result = await generateVocabularyDefinition(term);
+      const userProfile = payload.args.userProfile as any;
+      const result = await generateVocabularyDefinition(term, userProfile);
       return NextResponse.json(result);
     }
 
@@ -125,8 +126,10 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "vocabList size is out of range." }, { status: 400 });
       }
 
+      const userProfile = payload.args.userProfile as any;
       const result = await generateQuiz(
-        payload.args.vocabList as Parameters<typeof generateQuiz>[0]
+        payload.args.vocabList as Parameters<typeof generateQuiz>[0],
+        userProfile
       );
       return NextResponse.json(result);
     }
@@ -139,6 +142,7 @@ export async function POST(request: NextRequest) {
       const persona = payload.args.persona;
       const history = payload.args.history;
       const message = validateString(payload.args.message, "message", 1, 1500);
+      const userProfile = payload.args.userProfile as any;
 
       if (
         persona !== "teacher" &&
@@ -167,7 +171,8 @@ export async function POST(request: NextRequest) {
       const result = await chatSpeakingCoach(
         persona,
         history as Parameters<typeof chatSpeakingCoach>[1],
-        message
+        message,
+        userProfile
       );
       return NextResponse.json(result);
     }
