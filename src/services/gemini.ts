@@ -60,7 +60,17 @@ export async function generateVocabularyDefinition(term: string): Promise<{
   const client = createGeminiClient();
   
   if (!client) {
-    throw new Error("Không thể khởi tạo trợ lý dịch thuật: Thiếu cấu hình GEMINI_API_KEY trong hệ thống.");
+    return {
+      term: cleanTerm,
+      ipa: "/ˌdeməʊˈfaɪl/",
+      partOfSpeech: "noun",
+      meaningVi: `[Demo Mode] Định nghĩa mẫu cho từ "${cleanTerm}" (Chưa cấu hình GEMINI_API_KEY)`,
+      example: `This is a sample learning sentence using the word "${cleanTerm}".`,
+      exampleVi: `Đây là câu ví dụ mẫu sử dụng từ "${cleanTerm}" trong chế độ thử nghiệm.`,
+      synonyms: ["mock", "sample", "test-word"],
+      collocations: [`learn ${cleanTerm}`, `master ${cleanTerm}`],
+      practicalUsage: "Bạn đang chạy ứng dụng ở chế độ Local Demo không có GEMINI_API_KEY. Khi điền khoá API Key hợp lệ vào file .env.local, Gemini AI sẽ tự động tra cứu, phiên âm IPA, dịch nghĩa tiếng Việt và phân tích ngữ cảnh thực tế cho bất kỳ từ vựng nào bạn yêu cầu."
+    };
   }
 
   try {
@@ -108,7 +118,41 @@ export async function generateQuiz(vocabList: VocabularyItem[]): Promise<QuizQue
   }
 
   if (!client) {
-    throw new Error("Không thể khởi tạo bài kiểm tra AI: Thiếu cấu hình GEMINI_API_KEY.");
+    const mockQuestions: QuizQuestion[] = vocabList.slice(0, 3).map((v, index) => {
+      const type = index === 0 ? "multiple-choice" : index === 1 ? "fill-in-blank" : "matching";
+      return {
+        id: `mock-quiz-${index}-${Math.random().toString(36).substring(2, 5)}`,
+        type,
+        questionText: type === "multiple-choice" 
+          ? `Từ nào sau đây có nghĩa là: "${v.meaningVi}"?`
+          : type === "fill-in-blank"
+            ? `Điền vào ô trống: "She gave a very ________ presentation to the client." (Gợi ý: ${v.term} - ${v.meaningVi})`
+            : `Ghép từ "${v.term}" với nghĩa tiếng Việt phù hợp nhất:`,
+        options: type === "multiple-choice"
+          ? [v.term, "ephemeral", "eloquent", "resilient"].filter((value, idx, self) => self.indexOf(value) === idx).slice(0, 4)
+          : type === "matching"
+            ? [v.meaningVi, "sự tình cờ", "chóng tàn, phù du", "kiên cường"]
+            : undefined,
+        correctAnswer: type === "multiple-choice" 
+          ? v.term 
+          : type === "fill-in-blank" 
+            ? v.term 
+            : v.meaningVi,
+        explanation: `[Demo Mode] Đây là lời giải mẫu cho từ "${v.term}". Trong chế độ chạy thật, Gemini AI sẽ phân tích từ vựng bạn đã lưu để tự động sinh các câu hỏi đa dạng kèm giải thích ngữ pháp chi tiết.`
+      };
+    });
+    
+    if (mockQuestions.length === 0) {
+      mockQuestions.push({
+        id: "mock-quiz-default",
+        type: "multiple-choice",
+        questionText: "Từ nào sau đây mang nghĩa là 'tình cờ tìm thấy điều may mắn' (serendipity)?",
+        options: ["serendipity", "ephemeral", "eloquent", "resilient"],
+        correctAnswer: "serendipity",
+        explanation: "Serendipity nghĩa là sự tình cờ tìm thấy những điều may mắn, thú vị. Đây là câu hỏi mẫu ở chế độ Local Demo."
+      });
+    }
+    return mockQuestions;
   }
 
   try {
@@ -185,7 +229,19 @@ export async function chatSpeakingCoach(
   };
 
   if (!client) {
-    throw new Error("Không thể khởi tạo giáo viên AI: Thiếu cấu hình GEMINI_API_KEY.");
+    const personaNames = {
+      teacher: "Ms. Sarah (Teacher)",
+      partner: "Alex (Language Partner)",
+      interviewer: "Mr. Thompson (Interviewer)"
+    };
+    
+    return {
+      reply: `Hello! I received your message: "${message}". Since you are in Demo Mode (without GEMINI_API_KEY), I am simulated to keep the conversation flowing. How are you doing today?`,
+      score: 85,
+      grammar: `[Demo Mode] Bạn đã viết: "${message}". Câu của bạn ngữ pháp khá tốt. Khi cấu hình GEMINI_API_KEY, tôi sẽ phân tích chi tiết lỗi chia động từ, giới từ, mạo từ của bạn tại đây.`,
+      vocabulary: "[Demo Mode] Từ vựng của bạn rõ ràng, dễ hiểu. Bạn có thể sử dụng thêm các từ nối để câu nói tự nhiên hơn.",
+      fluency: `[Demo Mode] Nhận xét độ trôi chảy giả lập cho vai trò ${personaNames[persona]}.`
+    };
   }
 
   try {
@@ -241,7 +297,12 @@ export async function evaluateShadowingSpeech(
   const client = createGeminiClient();
 
   if (!client) {
-    throw new Error("Không thể khởi tạo đánh giá âm thanh AI: Thiếu cấu hình GEMINI_API_KEY.");
+    return {
+      pronunciationScore: 88,
+      intonationScore: 85,
+      fluencyScore: 90,
+      detailedFeedback: `[Demo Mode] Bạn đã luyện đọc câu: "${originalText}". Phát âm của bạn được đánh giá đạt 88%. Lưu ý các âm cuối (ending sounds) và nối âm giữa các từ. Khi cấu hình GEMINI_API_KEY, tôi sẽ nghe file ghi âm của bạn và chỉ ra chi tiết từ nào đọc sai, cần cải thiện âm nào.`
+    };
   }
 
   try {
